@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HYPER-POS Enterprise Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="manifest" href="manifest.json">
+</head>
+<body class="dark-theme">
+
+    <!-- شاشة تسجيل الدخول -->
+    <div class="login-overlay" id="loginModal">
+        <div class="login-card">
+            <div class="login-header">
+                <i class="fa-solid fa-shield-halved"></i>
+                <h2>تسجيل الدخول للنظام</h2>
+                <p>اختر الحساب وادخل كلمة المرور للدخول</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>المستخدم:</label>
+                    <select id="userRoleSelect" class="custom-select">
+                        <option value="cashier">علي (كاشير)</option>
+                        <option value="admin">حمزة (مدير النظام - أدمن)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور / PIN:</label>
+                    <input type="password" id="passwordInput" placeholder="ادخل كلمة المرور..." required>
+                    <small class="hint">كلمة سر حمزة (الأدمن): <code>2212</code> | الكاشير: <code>1234</code></small>
+                </div>
+                <button type="submit" class="btn-login"><i class="fa-solid fa-right-to-bracket"></i> دخول</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- الهيكل الرئيسي -->
+    <div class="app-layout" id="appLayout" style="display: none;">
+        <header class="top-navbar">
+            <div class="brand">
+                <i class="fa-solid fa-bolt brand-icon"></i>
+                <h2>HYPER<span>POS</span> <small>Enterprise</small></h2>
+            </div>
+
+            <div class="quick-stats">
+                <div class="stat-card"><i class="fa-solid fa-user-tie"></i> المستخدم: <span id="currentUserDisplay">--</span></div>
+                <div class="stat-card"><i class="fa-solid fa-shield-cat"></i> الدور: <span id="currentRoleDisplay">--</span></div>
+                <div class="stat-card live-clock"><i class="fa-regular fa-clock"></i> <span id="clock">00:00:00</span></div>
+            </div>
+
+            <div class="system-actions">
+                <button class="btn-icon" id="btnThemeToggle" title="تبديل الوضع الداكن/المضيء"><i class="fa-solid fa-moon"></i></button>
+                <button class="btn-icon" id="btnNotifications" title="تنبيهات المخزن والصلاحية">
+                    <i class="fa-solid fa-bell"></i><span class="badge" id="notifBadge">0</span>
+                </button>
+                <button class="btn-icon" id="btnLowStockReport" title="تقرير النواقص للموردين"><i class="fa-solid fa-file-export"></i></button>
+                <button class="btn-icon" id="btnSync" title="مزامنة مع السيرفر"><i class="fa-solid fa-rotate-right"></i></button>
+                <button class="btn-danger-outline" id="btnCloseShift" title="إغلاق وردية Z-Report"><i class="fa-solid fa-power-off"></i> تقفيل وردية</button>
+                <button class="btn-icon" id="btnLogout" title="تسجيل الخروج"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+            </div>
+        </header>
+
+        <div class="main-body">
+            <nav class="side-nav">
+                <button class="nav-btn active" data-view="posView" title="شاشة البيع (F4 للبحث)"><i class="fa-solid fa-cart-shopping"></i><span>البيع</span></button>
+                <button class="nav-btn" data-view="heldView" title="الفواتير المعلقة (F1)"><i class="fa-solid fa-pause"></i><span>معلقة</span></button>
+                <button class="nav-btn" data-view="returnsView" title="سجل الفواتير والمرتجعات"><i class="fa-solid fa-receipt"></i><span>الفواتير</span></button>
+                <button class="nav-btn" data-view="analyticsView" title="التحليلات والرسوم البيانية"><i class="fa-solid fa-chart-line"></i><span>التحليلات</span></button>
+                <button class="nav-btn" data-view="attendanceView" title="حضور وانصراف الموظفين"><i class="fa-solid fa-user-clock"></i><span>الحضور</span></button>
+                <button class="nav-btn admin-only" data-view="inventoryView" title="المخزن والمنتجات"><i class="fa-solid fa-boxes-stacked"></i><span>المخزن</span></button>
+                <button class="nav-btn admin-only" data-view="suppliersView" title="الموردين والشركات"><i class="fa-solid fa-truck-field"></i><span>الموردين</span></button>
+                <button class="nav-btn admin-only" data-view="customersView" title="العملاء والآجل"><i class="fa-solid fa-users"></i><span>العملاء</span></button>
+                <button class="nav-btn admin-only" data-view="auditLogView" title="سجل الأحداث الحساسة"><i class="fa-solid fa-clock-rotate-left"></i><span>السجل</span></button>
+                <button class="nav-btn admin-only" data-view="settingsView" title="الإعدادات"><i class="fa-solid fa-gear"></i><span>إعدادات</span></button>
+            </nav>
+
+            <main class="view-content">
+                <div id="posView" class="view-panel active">
+                    <div class="pos-layout">
+                        <section class="products-container">
+                            <div class="search-section">
+                                <div class="input-group">
+                                    <i class="fa-solid fa-barcode barcode-icon"></i>
+                                    <input type="text" id="barcodeSearch" placeholder="امسح الباركود للكتالوج أو اضغط Enter للإضافة (F4 للتحديد السريع)..." autofocus>
+                                </div>
+                                <div class="categories-bar" id="categoriesBar">
+                                    <button class="cat-btn active" data-cat="all"><i class="fa-solid fa-border-all"></i> الكل</button>
+                                    <button class="cat-btn" data-cat="dairy">ألبان وجبن</button>
+                                    <button class="cat-btn" data-cat="beverage">مشروبات</button>
+                                    <button class="cat-btn" data-cat="snacks">تسالي وشيكولاتة</button>
+                                    <button class="cat-btn" data-cat="frozen">مجمدات</button>
+                                    <button class="cat-btn" data-cat="grocery">بقاليات</button>
+                                </div>
+                            </div>
+                            <div class="products-grid" id="productsGrid"></div>
+                        </section>
+
+                        <aside class="invoice-panel">
+                            <div class="invoice-header">
+                                <h3>الفاتورة الحالية <span class="inv-id" id="invoiceId">#POS-LIVE</span></h3>
+                            </div>
+                            <div class="cart-table-wrapper">
+                                <table class="cart-table">
+                                    <thead>
+                                        <tr>
+                                            <th>الصنف</th>
+                                            <th>الكمية</th>
+                                            <th>السعر</th>
+                                            <th>الإجمالي</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cartTableBody"></tbody>
+                                </table>
+                                <div class="empty-cart-msg" id="emptyCartMsg">
+                                    <i class="fa-solid fa-basket-shopping"></i>
+                                    <p>السلة فارغة</p>
+                                </div>
+                            </div>
+                            
+                            <div class="discount-section" style="margin-bottom: 10px; display: flex; gap: 5px;">
+                                <input type="text" id="couponInput" placeholder="كوبون خصم (مثال: SAVE10)" style="flex:1; padding:6px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-dark); color:#fff; font-size:0.8rem;">
+                                <button class="btn-action btn-hold" id="btnApplyCoupon" style="padding:6px 10px; font-size:0.8rem;">تطبيق</button>
+                                <button class="btn-action btn-sm" id="btnManualDiscount" style="background:#6366f1; padding:6px 10px; font-size:0.8rem;" title="خصم يدوي">خصم %</button>
+                            </div>
+
+                            <div class="invoice-summary">
+                                <div class="summary-line"><span>المبلغ الأساسي:</span><span id="subTotal">0.00 ج.م</span></div>
+                                <div class="summary-line" id="discountRow" style="display:none; color:var(--accent-orange);"><span>الخصم والعروض:</span><span id="discountVal">0.00 ج.م</span></div>
+                                <div class="summary-line"><span>الضريبة (14%):</span><span id="taxVal">0.00 ج.م</span></div>
+                                <div class="grand-total-box">
+                                    <span>المطلوب:</span>
+                                    <div class="total-amount" id="grandTotal">0.00 <small>ج.م</small></div>
+                                </div>
+                                <div class="checkout-actions">
+                                    <button class="btn-action btn-hold" id="holdInvoiceBtn" title="اختصار F1"><i class="fa-solid fa-hand"></i> تعليق [F1]</button>
+                                    <button class="btn-action btn-cancel" id="clearCartBtn"><i class="fa-solid fa-trash-can"></i> إلغاء</button>
+                                    <button class="btn-action btn-pay" id="payInvoiceBtn" title="اختصار Space أو F2"><i class="fa-solid fa-cash-register"></i> الدفع [F2/Space]</button>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+
+                <div id="heldView" class="view-panel">
+                    <h2><i class="fa-solid fa-pause"></i> الفواتير المعلقة</h2>
+                    <div id="heldInvoicesList" class="cards-list" style="margin-top: 15px;"></div>
+                </div>
+
+                <div id="returnsView" class="view-panel">
+                    <h2><i class="fa-solid fa-receipt"></i> سجل الفواتير والمرتجعات</h2>
+                    <div class="panel-box" style="margin-bottom: 15px;">
+                        <div class="filter-controls" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                            <input type="text" id="returnInvSearch" placeholder="ابحث برقم الفاتورة..." style="flex: 1; min-width: 200px;">
+                            <select id="invoiceTimeFilter" class="custom-select">
+                                <option value="all">كل الأوقات</option>
+                                <option value="today">فواتير اليوم</option>
+                                <option value="month">فواتير الشهر الحالي</option>
+                                <option value="year">فواتير السنة الحالية</option>
+                            </select>
+                            <button class="btn-action btn-pay" id="btnFilterInvoices"><i class="fa-solid fa-filter"></i> تصفية الفواتير</button>
+                        </div>
+                    </div>
+                    <div class="panel-box">
+                        <h3>قائمة الفواتير المسجلة</h3>
+                        <table class="data-table" id="invoicesLogsTable">
+                            <thead>
+                                <tr>
+                                    <th>رقم الفاتورة</th>
+                                    <th>التاريخ والوقت</th>
+                                    <th>طريقة الدفع</th>
+                                    <th>الإجمالي</th>
+                                    <th>عدد العناصر</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesLogsTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="panel-box" id="returnResultDetails" style="display: none; margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>تفاصيل الفاتورة المختارة: <span id="returnInvNum" style="color: var(--accent-blue);"></span></h3>
+                            <small id="returnInvDate" style="color: var(--text-muted);"></small>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>الصنف</th>
+                                    <th>الكمية المباعة</th>
+                                    <th>سعر الوحدة</th>
+                                    <th>إجراء الإرجاع</th>
+                                </tr>
+                            </thead>
+                            <tbody id="returnItemsTableBody"></tbody>
+                        </table>
+                        <div style="margin-top: 15px; text-align: left;">
+                            <button class="btn-action btn-cancel" id="btnProcessFullReturn"><i class="fa-solid fa-trash-arrow-up"></i> إرجاع الفاتورة بالكامل (يتطلب PIN الأدمن)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="analyticsView" class="view-panel">
+                    <h2><i class="fa-solid fa-chart-pie"></i> لوحة التحليلات ورسوم المبيعات المتقدمة</h2>
+                    <div class="settings-grid" style="margin-top: 15px;">
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-trophy"></i> الأكثر مبيعاً (Top Selling)</h3>
+                            <canvas id="topProductsChart"></canvas>
+                        </div>
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-clock"></i> ساعات الذروة (Peak Hours)</h3>
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="panel-box" style="margin-top: 15px;">
+                        <h3><i class="fa-solid fa-chart-column"></i> المبيعات اليومية وتوقعات الأرباح</h3>
+                        <canvas id="salesProfitChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+
+                <div id="attendanceView" class="view-panel">
+                    <h2><i class="fa-solid fa-user-clock"></i> نظام حضور وانصراف الموظفين</h2>
+                    <div class="settings-grid" style="margin-top: 15px;">
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-id-card"></i> تسجيل (حضور / انصراف)</h3>
+                            <div class="form-group">
+                                <label>ادخل كود الموظف أو امسح الباركود:</label>
+                                <input type="text" id="empCodeInput" placeholder="مثال: EMP-101 واضغط Enter..." autofocus>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button class="btn-action btn-pay" id="btnCheckIn" style="flex: 1;"><i class="fa-solid fa-right-to-bracket"></i> تسجيل حضور</button>
+                                <button class="btn-action btn-cancel" id="btnCheckOut" style="flex: 1;"><i class="fa-solid fa-right-from-bracket"></i> تسجيل انصراف</button>
+                            </div>
+                        </div>
+
+                        <div class="settings-card admin-only">
+                            <h3><i class="fa-solid fa-user-plus"></i> إضافة موظف جديد</h3>
+                            <div class="form-group">
+                                <label>اسم الموظف:</label>
+                                <input type="text" id="newEmpName" placeholder="مثال: أحمد محمود">
+                            </div>
+                            <div class="form-group">
+                                <label>كود الموظف (الباركود):</label>
+                                <input type="text" id="newEmpCode" placeholder="مثال: EMP-103">
+                            </div>
+                            <button class="btn-action btn-hold" id="btnAddEmp" style="width: 100%; margin-top: 10px;"><i class="fa-solid fa-plus"></i> إضافة الموظف</button>
+                        </div>
+                    </div>
+
+                    <div class="panel-box" style="margin-top: 20px;">
+                        <h3>سجل الموظفين والحضور اليومي</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>كود الموظف</th>
+                                    <th>اسم الموظف</th>
+                                    <th>التاريخ</th>
+                                    <th>وقت الحضور</th>
+                                    <th>وقت الانصراف</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="inventoryView" class="view-panel">
+                    <div class="view-header">
+                        <h2><i class="fa-solid fa-boxes-stacked"></i> إدارة المخزون والمنتجات</h2>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn-action btn-hold" id="btnExportLowStock"><i class="fa-solid fa-file-pdf"></i> تصدير تقرير النواقص</button>
+                            <button class="btn-action btn-pay" id="btnOpenAddProduct"><i class="fa-solid fa-plus"></i> إضافة منتج جديد</button>
+                        </div>
+                    </div>
+                    <div class="panel-box">
+                        <table class="data-table" id="inventoryTable">
+                            <thead>
+                                <tr>
+                                    <th>الكود</th>
+                                    <th>الاسم</th>
+                                    <th>سعر التكلفة</th>
+                                    <th>سعر البيع</th>
+                                    <th>المخزون الحالي</th>
+                                    <th>الحد الأدنى (Min)</th>
+                                    <th>تاريخ الصلاحية</th>
+                                    <th>معدل السحب (%)</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="suppliersView" class="view-panel">
+                    <div class="view-header">
+                        <h2><i class="fa-solid fa-truck-field"></i> إدارة الموردين وفواتير الشراء</h2>
+                        <button class="btn-action btn-pay" id="btnOpenAddSupplier"><i class="fa-solid fa-truck-medical"></i> إضافة مورد جديد</button>
+                    </div>
+                    <div class="panel-box">
+                        <table class="data-table" id="suppliersTable">
+                            <thead>
+                                <tr>
+                                    <th>اسم المورد / الشركة</th>
+                                    <th>رقم الهاتف</th>
+                                    <th>الشركة / المصنع</th>
+                                    <th>مستحقات المورد</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="customersView" class="view-panel">
+                    <div class="view-header">
+                        <h2><i class="fa-solid fa-users"></i> إدارة حسابات العملاء والآجل</h2>
+                        <button class="btn-action btn-pay" id="btnOpenAddCustomer"><i class="fa-solid fa-user-plus"></i> إضافة عميل جديد</button>
+                    </div>
+                    <div class="panel-box">
+                        <table class="data-table" id="customersTable">
+                            <thead>
+                                <tr>
+                                    <th>اسم العميل</th>
+                                    <th>رقم الهاتف</th>
+                                    <th>الديون الحالية (الآجل)</th>
+                                    <th>نقاط الولاء</th>
+                                    <th>إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="auditLogView" class="view-panel">
+                    <div class="view-header">
+                        <h2><i class="fa-solid fa-clock-rotate-left"></i> سجل حركة العمليات الحساسة (Audit Trail)</h2>
+                        <button class="btn-action btn-cancel admin-only" id="btnClearAuditLog"><i class="fa-solid fa-broom"></i> تفريغ السجل (خاص بالصيانة/التطوير)</button>
+                    </div>
+                    <div class="panel-box" style="margin-top: 15px;">
+                        <table class="data-table" id="auditLogTable">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ والوقت</th>
+                                    <th>المستخدم</th>
+                                    <th>نوع الحركة</th>
+                                    <th>التفاصيل والبيانات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="auditLogTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="settingsView" class="view-panel">
+                    <h2><i class="fa-solid fa-gear"></i> إعدادات النظام والطباعة الحرارية</h2>
+                    <div class="settings-grid">
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-store"></i> بيانات المؤسسة والفرع</h3>
+                            <div class="form-group">
+                                <label>اسم الهايبر / المحل:</label>
+                                <input type="text" id="settingStoreName" value="هايبر ماركت الأمل">
+                            </div>
+                            <div class="form-group">
+                                <label>رقم الهاتف للطباعة:</label>
+                                <input type="text" id="settingStorePhone" value="01012345678">
+                            </div>
+                            <div class="form-group">
+                                <label>شروط وسياسة الاسترجاع (الفوتر):</label>
+                                <input type="text" id="settingReturnPolicy" value="البضاعة المباعة تُرد وتُستبدل خلال 14 يوماً بشرط وجود الفاتورة الأصلية.">
+                            </div>
+                            <div class="form-group">
+                                <label>نسبة الضريبة الافتراضية (%):</label>
+                                <input type="number" id="settingTaxRate" value="14">
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-print"></i> إعدادات الطباعة الحرارية (Receipt Templates)</h3>
+                            <div class="form-group">
+                                <label>عرض ورق طابعة الفواتير:</label>
+                                <select id="settingReceiptPaperWidth" class="custom-select">
+                                    <option value="80mm">طابعة حرارية عريضة (80mm Standard)</option>
+                                    <option value="58mm">طابعة حرارية صغيرة (58mm Mini)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>عرض اللوجو والباركود بالفاتورة:</label>
+                                <select id="settingReceiptShowQR" class="custom-select">
+                                    <option value="yes">إظهار اللوجو ورمز QR والباركود</option>
+                                    <option value="no">إخفاء الرمز</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h3><i class="fa-solid fa-database"></i> النسخ الاحتياطي والصيانة</h3>
+                            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">احفظ نسخة من البيانات لإستعادتها في أي وقت.</p>
+                            <div class="actions-row" style="display:flex; gap:10px;">
+                                <button class="btn-action btn-pay" id="btnBackupData"><i class="fa-solid fa-download"></i> تحميل نسخة احتياطية</button>
+                                <button class="btn-action btn-hold" id="btnRestoreData"><i class="fa-solid fa-upload"></i> استرجاع بيانات</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:20px; text-align:left;">
+                        <button class="btn-action btn-pay" id="btnSaveSettings" style="padding: 12px 30px;"><i class="fa-solid fa-floppy-disk"></i> حفظ الإعدادات</button>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="addSupplierModal" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fa-solid fa-truck"></i> إضافة مورد جديد</h3>
+            <div class="form-group"><label>اسم المورد:</label><input type="text" id="newSuppName"></div>
+            <div class="form-group"><label>رقم الهاتف:</label><input type="text" id="newSuppPhone"></div>
+            <div class="form-group"><label>اسم الشركة / المصنع:</label><input type="text" id="newSuppCompany"></div>
+            <div class="form-group"><label>المبلغ المستحق له (المديونية):</label><input type="number" id="newSuppBalance" value="0"></div>
+            <div class="modal-actions" style="margin-top:15px; display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn-action btn-cancel" id="btnCancelAddSupp">إلغاء</button>
+                <button class="btn-action btn-pay" id="btnSaveNewSupp">حفظ المورد</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="addProductModal" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fa-solid fa-cart-plus"></i> إضافة منتج جديد</h3>
+            <div class="form-group"><label>اسم المنتج:</label><input type="text" id="newProdName"></div>
+            <div class="form-group"><label>الباركود / الكود:</label><input type="text" id="newProdBarcode"></div>
+            <div class="form-group"><label>سعر التكلفة الاصلي (ج.م):</label><input type="number" id="newProdCost" value="0"></div>
+            <div class="form-group"><label>سعر البيع (ج.م):</label><input type="number" id="newProdPrice"></div>
+            <div class="form-group"><label>الكمية المتاحة:</label><input type="number" id="newProdStock"></div>
+            <div class="form-group"><label>الحد الأدنى للتنبيه (minStock):</label><input type="number" id="newProdMinStock" value="10"></div>
+            <div class="form-group"><label>تاريخ الانتهاء/الصلاحية:</label><input type="date" id="newProdExpiry"></div>
+            <div class="form-group"><label>السعة القصوى (لحساب % السحب):</label><input type="number" id="newProdMaxStock" value="100"></div>
+            <div class="form-group">
+                <label>القسم:</label>
+                <select id="newProdCat" class="custom-select">
+                    <option value="dairy">ألبان وجبن</option>
+                    <option value="beverage">مشروبات</option>
+                    <option value="snacks">تسالي وشيكولاتة</option>
+                    <option value="frozen">مجمدات</option>
+                    <option value="grocery">بقاليات</option>
+                </select>
+            </div>
+            <div class="modal-actions" style="margin-top:15px; display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn-action btn-cancel" id="btnCancelAddProd">إلغاء</button>
+                <button class="btn-action btn-pay" id="btnSaveNewProd">حفظ المنتج</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="addCustomerModal" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fa-solid fa-user-plus"></i> إضافة عميل جديد</h3>
+            <div class="form-group"><label>اسم العميل:</label><input type="text" id="newCustName"></div>
+            <div class="form-group"><label>رقم الهاتف:</label><input type="text" id="newCustPhone"></div>
+            <div class="form-group"><label>الديون الابتدائية (إن وجدت):</label><input type="number" id="newCustDebt" value="0"></div>
+            <div class="modal-actions" style="margin-top:15px; display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn-action btn-cancel" id="btnCancelAddCust">إلغاء</button>
+                <button class="btn-action btn-pay" id="btnSaveNewCust">حفظ العميل</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="payModal" style="display:none;">
+        <div class="modal-card">
+            <h3><i class="fa-solid fa-cash-register"></i> إتمام عملية الدفع</h3>
+            <div class="pay-amount-display" style="font-size:1.4rem; text-align:center; margin:15px 0; color:var(--accent-green); font-weight:bold;">
+                الإجمالي النهائي: <span id="payModalTotal">0.00</span> ج.م
+            </div>
+            <div class="form-group">
+                <label>طريقة الدفع:</label>
+                <select id="payMethod" class="custom-select">
+                    <option value="cash">نقداً (Cash)</option>
+                    <option value="card">فيزا / بطاقة (Card)</option>
+                </select>
+            </div>
+            <div class="modal-actions" style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn-action btn-cancel" id="btnCancelPay">إلغاء</button>
+                <button class="btn-action btn-pay" id="btnConfirmPay">تأكيد وطباعة الفاتورة الحرارية</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
